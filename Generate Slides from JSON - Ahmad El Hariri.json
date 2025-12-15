@@ -1,0 +1,178 @@
+{
+  "name": "Generate Slides from JSON",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "391efa0e-1dc4-4662-b375-0b20adc46e61",
+      "name": "When clicking 'Test workflow'",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -448,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "presentationId": "=1z7akj2K7bxTTZ-pq3wO_LAH88u8ort6FLISBAj8e8Jo"
+      },
+      "type": "n8n-nodes-base.googleSlides",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        32
+      ],
+      "id": "d52302a7-8304-4f4a-88df-481a91f8848e",
+      "name": "Get a presentation",
+      "credentials": {
+        "googleSlidesOAuth2Api": {
+          "id": "5IFRmU1fVqVYfueq",
+          "name": "Google Slides account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "replaceText",
+        "presentationId": "={{ $('Get a presentation').item.json.presentationId }}",
+        "textUi": {
+          "textValues": [
+            {
+              "pageObjectIds": "={{ [] }}",
+              "text": "title1",
+              "replaceText": "={{ $('When clicking \\'Test workflow\\'').item.json.slides[0].title }}"
+            },
+            {
+              "pageObjectIds": "={{ [] }}",
+              "text": "title2",
+              "replaceText": "={{ $('When clicking \\'Test workflow\\'').item.json.slides[1].title }}"
+            },
+            {
+              "pageObjectIds": "={{ [] }}",
+              "text": "header1",
+              "replaceText": "={{ $('When clicking \\'Test workflow\\'').item.json.slides[0].header }}"
+            },
+            {
+              "pageObjectIds": "={{ [] }}",
+              "text": "bullet1",
+              "replaceText": "={{ $('When clicking \\'Test workflow\\'').item.json.slides[0].bullets.toJsonString() }}"
+            },
+            {
+              "pageObjectIds": "={{ [] }}",
+              "text": "graph1",
+              "replaceText": "={{ $('When clicking \\'Test workflow\\'').item.json.slides[0].suggested_graphs.toJsonString() }}"
+            },
+            {
+              "pageObjectIds": "={{ [] }}",
+              "text": "header2",
+              "replaceText": "={{ $('When clicking \\'Test workflow\\'').item.json.slides[1].header }}"
+            },
+            {
+              "pageObjectIds": "={{ [] }}",
+              "text": "bullet2",
+              "replaceText": "={{ $('When clicking \\'Test workflow\\'').item.json.slides[1].bullets.toJsonString() }}"
+            },
+            {
+              "pageObjectIds": "={{ [] }}",
+              "text": "graph2",
+              "replaceText": "={{ $('When clicking \\'Test workflow\\'').item.json.slides[1].suggested_graphs.toJsonString() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSlides",
+      "typeVersion": 2,
+      "position": [
+        0,
+        32
+      ],
+      "id": "8ca66195-7443-4587-8375-495c12bf469a",
+      "name": "Replace text in a presentation",
+      "credentials": {
+        "googleSlidesOAuth2Api": {
+          "id": "5IFRmU1fVqVYfueq",
+          "name": "Google Slides account"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "When clicking 'Test workflow'": [
+      {
+        "json": {
+          "slides": [
+            {
+              "header": "Inconsistencies in Procurement Processes Lead to Inefficiencies and Errors",
+              "title": "Current Procurement State Analysis",
+              "bullets": [
+                "Requests vary significantly across departments, leading to inefficiencies.",
+                "Approval processes are scattered across email and Teams, complicating tracking.",
+                "Urgent purchases often bypass established policies, increasing risk.",
+                "Repeated vendor data entries result in inaccuracies and confusion.",
+                "Inconsistent tax field entries contribute to invoice errors."
+              ],
+              "suggested_graphs": [
+                "Flowchart of current approval process",
+                "Bar graph showing department request variations",
+                "Pie chart of urgent buys versus regular purchases",
+                "Heatmap of vendor data duplication issues",
+                "Line graph tracking invoice errors over time"
+              ]
+            },
+            {
+              "header": "Achieving Efficiency Targets through Spend Management Improvement",
+              "title": "Target Outcomes for Spend Management",
+              "bullets": [
+                "Reduce maverick spend by 15-20%",
+                "Shorten cycle time by 25%",
+                "Achieve on-time payment rate of over 90% by Q3 2026"
+              ],
+              "suggested_graphs": [
+                "Bar graph showing reduction in maverick spend",
+                "Line chart illustrating cycle time reduction over time",
+                "Pie chart displaying on-time payment rates"
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "connections": {
+    "When clicking 'Test workflow'": {
+      "main": [
+        [
+          {
+            "node": "Get a presentation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a presentation": {
+      "main": [
+        [
+          {
+            "node": "Replace text in a presentation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "d3e852bd-cf81-4084-9ab7-0b2430485cfb",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "82a5e6399331edcada89d9013b3f4a55c86949a83f3cd120240540005b851093"
+  },
+  "id": "enNlz5IwATSlhByO",
+  "tags": []
+}

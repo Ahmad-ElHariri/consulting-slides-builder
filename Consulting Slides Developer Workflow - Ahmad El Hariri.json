@@ -1,0 +1,430 @@
+{
+  "name": "Consulting Slides Developer - Me",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "consulting-slides-builder",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a199a443-5d90-430d-99f1-2f64ba7aeaf2",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -384,
+        -208
+      ],
+      "webhookId": "4e2bfe17-4b84-4362-a3b6-848a85412fc9"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "long_text",
+              "value": "={{ $('Webhook Trigger').item.json.body.content }}",
+              "type": "string"
+            },
+            {
+              "id": "57d59bfb-f069-4227-ab69-d8ed28dfc54f",
+              "name": "",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "83f5bda9-aea1-4d79-a6e8-48f1d1809254",
+      "name": "Extract Content",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -208,
+        -208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "function normalizeText(text) {\n  if (typeof text !== \"string\") return \"\";\n\n  // 1) Normalize newlines + trim\n  let t = text.replace(/\\r\\n/g, \"\\n\").replace(/\\r/g, \"\\n\").trim();\n\n  // 2) Remove trailing spaces on lines\n  t = t.replace(/[ \\t]+$/gm, \"\");\n\n  // 3) Convert inline \" • \" into new bullet lines\n  //    \"Text • item1 • item2\" => \"Text\\n- item1\\n- item2\"\n  t = t.replace(/\\s+•\\s+/g, \"\\n- \");\n\n  // 4) Convert common bullet markers at line start to \"- \"\n  t = t.replace(/^[ \\t]*[•·‣◦▪–—*]\\s+/gm, \"- \");\n  t = t.replace(/^[ \\t]*-\\s*/gm, \"- \"); // normalize existing hyphen bullets\n  t = t.replace(/^[ \\t]*[oO]\\s+/gm, \"- \"); // \"o \" sub-bullets\n  t = t.replace(/^[ \\t]*\\d+[\\.\\)]\\s+/gm, \"- \"); // 1. / 2)\n  t = t.replace(/^[ \\t]*[a-zA-Z][\\.\\)]\\s+/gm, \"- \"); // a) / A.\n\n  // 5) Convert inline \" - \" bullet sequences into line bullets (Option B)\n  // Heuristic: only convert when \" - \" follows a sentence boundary or a colon.\n  // Example: \"Approvals happen over email. - Manual approvals...\" => newline bullet\n  t = t.replace(/([.!?;:])\\s+-\\s+/g, \"$1\\n- \");\n\n  // Also handle cases like: \"email - Manual approvals...\" (dash after a phrase)\n  // Only if dash is surrounded by spaces.\n  t = t.replace(/([a-zA-Z0-9])\\s+-\\s+([A-Za-z])/g, \"$1\\n- $2\");\n\n  // 6) Collapse excessive blank lines (3+ -> 2)\n  t = t.replace(/\\n{3,}/g, \"\\n\\n\");\n\n  return t.trim();\n}\n\nconst items = $input.all();\nreturn items.map((item) => {\n  const longText = item.json.long_text ?? item.json.content ?? \"\";\n  return { json: { normalized_text: normalizeText(longText) } };\n});\n"
+      },
+      "id": "b02c9e75-7f22-4455-9393-fda205db9015",
+      "name": "Normalize Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -32,
+        -208
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.normalized_text }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=You are a “Slide Splitter” agent. Your only task is to split one input text into multiple slide-sized parts by grouping adjacent lines/sentences into coherent chunks. You must NOT rewrite, paraphrase, summarize, add, remove, or reorder any content. You only copy original content and decide boundaries between parts.\n\nInput:\n- One string: normalized_text (may include paragraphs and bullet lines starting with “- ”).\n\nOutput (JSON only):\n{\n  \"slides_parts\": [\n    { \"slide_index\": 1, \"part_text\": \"...\" },\n    { \"slide_index\": 2, \"part_text\": \"...\" },\n    { \"slide_index\": 3, \"part_text\": \"...\" }\n  ]\n}\n\nHard constraints:\n1) Copy-only:\n- part_text must contain exact sentences/lines from the input.\n- You may concatenate chosen lines using \"\\n\" but you must not modify wording.\n2) Preserve order:\n- slides_parts must follow the exact sequence of the input. No reordering.\n3) No content loss:\n- Every meaningful line/sentence must appear in exactly one part_text.\n- Do not duplicate lines across slides_parts.\n\nSplitting rules (how to decide boundaries):\n4) Theme grouping:\n- Group adjacent content that describes the same theme into one part (examples of themes: current situation/challenges, impacts, targets, initiatives/solutions, tools/systems).\n- Start a new part when the content shifts to a different theme.\n5) KPIs/targets:\n- Lines containing numeric targets, dates, percentages, or explicit “Target/KPI” language should be grouped with the most relevant nearby goal/initiative lines. If no nearby goal exists, keep KPI/targets together in the same part.\n\nExample\nInput normalized_text:\nOur client’s current logistics operations face significant inefficiencies. Shipment coordination is still handled manually across teams, leading to delays, low visibility, and inconsistent workflows. The company aims to modernize operations by introducing digital automation, real-time tracking dashboards, and automated vendor communications to reduce delays by 20–25%.\n- Manual coordination between warehouse, transport, and customer service creates bottleneck\n- Lack of real-time tracking results in poor shipment visibility\n- Vendor communication is fragmented across email, WhatsApp, and spreadsheets\n- Management aims to reduce delays and improve SLA adherence\n- Target: improve on-time delivery to >92% by Q4 2025\n\nCorrect output:\n{\n  \"slides_parts\": [\n    {\n      \"slide_index\": 1,\n      \"part_text\": \"Our client’s current logistics operations face significant inefficiencies. Shipment coordination is still handled manually across teams, leading to delays, low visibility, and inconsistent workflows.\\n- Manual coordination between warehouse, transport, and customer service creates bottleneck\\n- Lack of real-time tracking results in poor shipment visibility\\n- Vendor communication is fragmented across email, WhatsApp, and spreadsheets\"\n    },\n    {\n      \"slide_index\": 2,\n      \"part_text\": \"The company aims to modernize operations by introducing digital automation, real-time tracking dashboards, and automated vendor communications to reduce delays by 20–25%.\\n- Management aims to reduce delays and improve SLA adherence\\n- Target: improve on-time delivery to >92% by Q4 2025\"\n    }\n  ]\n}\n\nReturn JSON only. No extra text."
+        }
+      },
+      "id": "b35db703-a389-4f92-b770-906c19cbbd25",
+      "name": "Slide Splitter",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        192,
+        -208
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "slides_parts",
+        "options": {}
+      },
+      "id": "95b74d5b-4f43-4cd2-9e78-6f02f418a605",
+      "name": "Split Slides",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        688,
+        -208
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.part_text }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a consulting slide formatter. Transform the input text into a structured consulting-style slide with a header (full sentence key message), title (short and descriptive), bullets (3-5 concise points), and suggested_graphs (visual suggestions)."
+        }
+      },
+      "id": "2358cf9a-7aa7-4d09-a5f5-b73ef43a1f84",
+      "name": "Slide Transformer",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        896,
+        -208
+      ]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "slides",
+        "options": {}
+      },
+      "id": "6e5f92bb-ff73-4672-ad89-40d3edb4b525",
+      "name": "Aggregate Slides",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1280,
+        -208
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"slides\": $json.slides } }}",
+        "options": {}
+      },
+      "id": "0d776639-ab44-4f39-a22a-01efbd8ae40c",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1456,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Normalize the coming input into clean text\n### Output of this part: \"normalized_text\"",
+        "height": 480,
+        "width": 544,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -432,
+        -304
+      ],
+      "typeVersion": 1,
+      "id": "6df93fd2-6f1f-429e-87f1-06010febc7b2",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "## Split the long text into parts, each one will later be in a slide\n### Output of this part: array of \"part_text\"",
+        "height": 480,
+        "width": 720,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        112,
+        -304
+      ],
+      "typeVersion": 1,
+      "id": "04447379-f7b3-4c3a-906a-79b0bc004a4b",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node (JavaScript)\n// Input JSON example:\n// { \"output\": \"{\\n \\\"slides_parts\\\": [ ... ]\\n}\" }\n//\n// Output JSON:\n// { \"slides_parts\": [ { slide_index: 1, part_text: \"Current state:\\n- ...\" }, ... ] }\n\nfunction parsePossiblyStringifiedJson(s) {\n  if (typeof s !== \"string\") throw new Error(\"Expected `output` to be a string.\");\n  const trimmed = s.trim();\n\n  // First parse attempt: already valid JSON string\n  try {\n    return JSON.parse(trimmed);\n  } catch (e1) {\n    // Fallback: remove non-string newlines/tabs (outside of quoted strings)\n    // This keeps \\n INSIDE strings (escaped) intact.\n    let cleaned = \"\";\n    let inString = false;\n    let escape = false;\n\n    for (let i = 0; i < trimmed.length; i++) {\n      const ch = trimmed[i];\n\n      if (escape) {\n        cleaned += ch;\n        escape = false;\n        continue;\n      }\n\n      if (ch === \"\\\\\") {\n        cleaned += ch;\n        escape = true;\n        continue;\n      }\n\n      if (ch === \"\\\"\") {\n        cleaned += ch;\n        inString = !inString;\n        continue;\n      }\n\n      // Remove raw newlines/tabs/carriage returns only when NOT inside a string\n      if (!inString && (ch === \"\\n\" || ch === \"\\r\" || ch === \"\\t\")) continue;\n\n      cleaned += ch;\n    }\n\n    return JSON.parse(cleaned);\n  }\n}\n\nconst items = $input.all();\n\nreturn items.map((item) => {\n  const raw = item.json.output;\n  const obj = parsePossiblyStringifiedJson(raw);\n\n  // Basic shape validation\n  if (!obj || !Array.isArray(obj.slides_parts)) {\n    throw new Error(\"Parsed JSON does not contain `slides_parts` array.\");\n  }\n\n  // Ensure correct types\n  obj.slides_parts = obj.slides_parts.map((p) => ({\n    slide_index: Number(p.slide_index),\n    part_text: typeof p.part_text === \"string\" ? p.part_text : String(p.part_text ?? \"\"),\n  }));\n\n  return { json: obj };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        496,
+        -208
+      ],
+      "id": "857a06e6-97b2-4b4b-92de-0bd070c2fb7d",
+      "name": "Output Parser"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n\t\t\"header\": {\n\t\t\t\"type\": \"string\"\n\t\t},\n\t\t\"title\": {\n\t\t\t\"type\": \"string\"\n\t\t},\n\t\t\"bullets\": {\n\t\t\t\"type\": \"array\",\n\t\t\t\"items\": {\n\t\t\t\t\"type\": \"string\"\n\t\t\t}\n\t\t},\n\t\t\"suggested_graphs\": {\n\t\t\t\"type\": \"array\",\n\t\t\t\"items\": {\n\t\t\t\t\"type\": \"string\"\n\t\t\t}\n\t\t}\n\t}\n}"
+      },
+      "id": "5b21fcfa-f466-4b31-b42a-2b8c9bd43b07",
+      "name": "Output Parser - Transformer",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1104,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node: Build final response JSON for the UI\n// Expected input shape (from your screenshot):\n// [\n//   {\n//     \"slides\": [\n//       { \"output\": { header, title, bullets, suggested_graphs } },\n//       { \"output\": { ... } }\n//     ]\n//   }\n// ]\n//\n// Output shape:\n// { \"slides\": [ {header,title,bullets,suggested_graphs}, ... ] }\n\nconst items = $input.all();\n\nfunction normalizeSlide(obj) {\n  const header = typeof obj?.header === \"string\" ? obj.header.trim() : \"\";\n  const title = typeof obj?.title === \"string\" ? obj.title.trim() : \"\";\n  const bullets = Array.isArray(obj?.bullets)\n    ? obj.bullets.map((b) => String(b).trim()).filter(Boolean)\n    : [];\n  const suggested_graphs = Array.isArray(obj?.suggested_graphs)\n    ? obj.suggested_graphs.map((g) => String(g).trim()).filter(Boolean)\n    : [];\n\n  return { header, title, bullets, suggested_graphs };\n}\n\nlet slides = [];\n\n// Case A: a single item contains {slides:[{output:{...}}, ...]}\nif (items.length === 1 && Array.isArray(items[0].json?.slides)) {\n  slides = items[0].json.slides.map((s) => normalizeSlide(s.output ?? s));\n} else {\n  // Case B: each item is one slide already (e.g., {output:{...}} or {header,...})\n  slides = items.map((it) => normalizeSlide(it.json.output ?? it.json));\n}\n\nreturn [\n  {\n    json: {\n      slides,\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1296,
+        16
+      ],
+      "id": "15ae3b3f-bb41-4047-a1b9-fe44046371f9",
+      "name": "Arrange Final Array of Slides"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "75548978-890e-4393-9403-83150dfe4b08",
+      "name": "4o-mini - Transformer",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        960,
+        32
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "mujRqwlahAhlg6dF",
+          "name": "elhariri2023@gmail.com"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "e7507541-ab54-4dab-9765-28b67d3efd59",
+      "name": "4o-mini - Splitter",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        272,
+        32
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "mujRqwlahAhlg6dF",
+          "name": "elhariri2023@gmail.com"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Transform Each part to consulting-style\n### Output of this part: array of slides in consulting-style",
+        "height": 480,
+        "width": 768,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        832,
+        -304
+      ],
+      "typeVersion": 1,
+      "id": "7d7e34a0-571a-462b-9472-8b3b23e25196",
+      "name": "Sticky Note2"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Content": {
+      "main": [
+        [
+          {
+            "node": "Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "Slide Splitter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slide Splitter": {
+      "main": [
+        [
+          {
+            "node": "Output Parser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Slides": {
+      "main": [
+        [
+          {
+            "node": "Slide Transformer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slide Transformer": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Slides",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Slides": {
+      "main": [
+        [
+          {
+            "node": "Arrange Final Array of Slides",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Output Parser": {
+      "main": [
+        [
+          {
+            "node": "Split Slides",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Output Parser - Transformer": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Slide Transformer",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Arrange Final Array of Slides": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4o-mini - Transformer": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Slide Transformer",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4o-mini - Splitter": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Slide Splitter",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "45615e38-08c5-4005-91a3-8f50697156fb",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "82a5e6399331edcada89d9013b3f4a55c86949a83f3cd120240540005b851093"
+  },
+  "id": "2WDIFl645bWAdSdd",
+  "tags": []
+}
